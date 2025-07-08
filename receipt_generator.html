@@ -1,0 +1,610 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Fee Receipt</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            background: linear-gradient(135deg, #e0e7ff, #f3f4f6);
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 210mm; /* A4 width */
+            margin: 10px auto;
+            background: #fff;
+            padding: 5mm;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        .form-section, .receipts-wrapper {
+            margin-bottom: 5mm;
+        }
+        .form-section h2 {
+            text-align: center;
+            color: #1e3a8a;
+            font-size: 18pt;
+            margin-bottom: 3mm;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .brand-title {
+            text-align: center;
+            font-size: 16pt;
+            font-weight: 700;
+            color: #1e3a8a;
+            margin-bottom: 2mm;
+            text-transform: uppercase;
+        }
+        .center-title {
+            text-align: center;
+            font-size: 12pt;
+            color: #3b82f6;
+            font-weight: 600;
+            margin: 1mm 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9pt;
+            margin-bottom: 2mm;
+        }
+        th, td {
+            padding: 1.5mm;
+            text-align: left;
+            border: 1px solid #e5e7eb;
+        }
+        th {
+            background: #eff6ff;
+            color: #1e3a8a;
+            font-weight: 600;
+        }
+        input, select {
+            width: 100%;
+            padding: 1.5mm;
+            border: 1px solid #d1d5db;
+            border-radius: 3px;
+            font-size: 9pt;
+            transition: border-color 0.3s;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        .payment-mode {
+            display: flex;
+            gap: 2mm;
+            margin: 2mm 0;
+        }
+        .payment-option {
+            flex: 1;
+            padding: 1.5mm;
+            border: 2px solid #d1d5db;
+            border-radius: 3px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.3s, border-color 0.3s, background-color 0.3s;
+            font-size: 9pt;
+            color: #374151;
+        }
+        .payment-option:hover {
+            transform: translateY(-2px);
+            border-color: #3b82f6;
+            background: #f0f9ff;
+        }
+        .payment-option.selected {
+            border-color: #3b82f6;
+            background: #dbeafe;
+            color: #1e3a8a;
+            font-weight: 600;
+        }
+        button {
+            padding: 1.5mm 3mm;
+            margin: 1mm;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 9pt;
+            transition: background-color 0.3s;
+        }
+        button[type="submit"] {
+            background: #3b82f6;
+            color: #fff;
+        }
+        button[type="submit"]:hover {
+            background: #2563eb;
+        }
+        button[type="reset"] {
+            background: #ef4444;
+            color: #fff;
+        }
+        button[type="reset"]:hover {
+            background: #dc2626;
+        }
+        .receipts-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2mm;
+        }
+        .receipt-section {
+            width: 190mm; /* Slightly less than A4 width for margins */
+            border: 1px solid #e5e7eb;
+            padding: 2mm;
+            background: #fff;
+            border-radius: 3px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            display: none;
+            page-break-inside: avoid;
+        }
+        .receipt-section.active {
+            display: block;
+        }
+        .receipt-section h3 {
+            font-size: 10pt;
+            font-weight: 600;
+            color: #1e3a8a;
+            margin: 1mm 0;
+        }
+        .contact-info {
+            text-align: center;
+            font-size: 8pt;
+            color: #6b7280;
+            margin-top: 2mm;
+            font-weight: 500;
+        }
+        .signature {
+            margin-top: 2mm;
+            font-size: 9pt;
+            color: #1e3a8a;
+            font-weight: 600;
+        }
+        .print-button {
+            background: #10b981;
+            color: #fff;
+        }
+        .print-button:hover {
+            background: #059669;
+        }
+        .close-button {
+            background: #6b7280;
+            color: #fff;
+        }
+        .close-button:hover {
+            background: #4b5563;
+        }
+        .button-container {
+            text-align: center;
+            margin-top: 2mm;
+        }
+        @media print {
+            body {
+                background: none;
+                margin: 0;
+                padding: 0;
+            }
+            .form-section, button:not(.print-button) {
+                display: none;
+            }
+            .container {
+                width: 210mm;
+                height: 297mm; /* A4 height */
+                margin: 0;
+                padding: 3mm;
+                box-shadow: none;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                align-items: center;
+                overflow: hidden;
+            }
+            .receipts-wrapper {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2mm;
+                max-height: 291mm; /* Ensure content fits within A4 height with margins */
+            }
+            .receipt-section {
+                display: block !important;
+                width: 190mm;
+                border: 1px solid #000;
+                padding: 2mm;
+                font-size: 8pt;
+                box-shadow: none;
+                page-break-inside: avoid;
+            }
+            .brand-title {
+                font-size: 12pt;
+                font-weight: 700;
+            }
+            .center-title {
+                font-size: 10pt;
+                font-weight: 600;
+            }
+            .receipt-section h3 {
+                font-size: 9pt;
+                font-weight: 600;
+            }
+            table {
+                font-size: 8pt;
+                font-weight: 500;
+            }
+            th, td {
+                padding: 1mm;
+            }
+            th {
+                font-weight: 700;
+            }
+            td {
+                font-weight: 500;
+            }
+            .contact-info {
+                font-size: 7pt;
+                font-weight: 500;
+            }
+            .signature {
+                font-size: 8pt;
+                font-weight: 600;
+            }
+            .button-container {
+                display: block;
+                text-align: center;
+                margin-top: 2mm;
+            }
+            .print-button {
+                display: block;
+                margin: 0 auto;
+            }
+            @page {
+                size: A4;
+                margin: 0;
+            }
+            .receipt-section {
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-section">
+            <h2>Student Fee Receipt</h2>
+            <form id="receiptForm" onsubmit="generateReceipt(event)">
+                <table>
+                    <tr>
+                        <th>Receipt No.</th>
+                        <td><input type="text" id="receiptNo" required></td>
+                    </tr>
+                    <tr>
+                        <th>Date</th>
+                        <td><input type="date" id="date" required></td>
+                    </tr>
+                    <tr>
+                        <th>Student's Name</th>
+                        <td><input type="text" id="studentName" required></td>
+                    </tr>
+                    <tr>
+                        <th>Class</th>
+                        <td><input type="text" id="class" required></td>
+                    </tr>
+                    <tr>
+                        <th>Father's Name</th>
+                        <td><input type="text" id="fatherName" required></td>
+                    </tr>
+                    <tr>
+                        <th>Mother's Name</th>
+                        <td><input type="text" id="motherName" required></td>
+                    </tr>
+                    <tr>
+                        <th>Mobile No.</th>
+                        <td><input type="number" id="mobileNo" pattern="[0-9]{10}" maxlength="10" required placeholder="Enter 10-digit mobile number"></td>
+                    </tr>
+                    <tr>
+                        <th>Tuition Fee</th>
+                        <td><input type="number" id="tuitionFee" required min="0"></td>
+                    </tr>
+                    <tr>
+                        <th>Payment Mode</th>
+                        <td>
+                            <div class="payment-mode">
+                                <div class="payment-option" data-value="Cash" onclick="selectPaymentMode(this)">Cash</div>
+                                <div class="payment-option" data-value="UPI" onclick="selectPaymentMode(this)">UPI</div>
+                                <div class="payment-option" data-value="Bank" onclick="selectPaymentMode(this)">Bank</div>
+                            </div>
+                            <input type="hidden" id="paymentMode" required>
+                        </td>
+                    </tr>
+                </table>
+                <button type="submit">Submit</button>
+                <button type="reset">Reset</button>
+            </form>
+        </div>
+
+        <div class="receipts-wrapper">
+            <div class="receipt-section" id="officeCopy">
+                <div class="brand-title">LEARN 360+ EXPERTISE</div>
+                <h2 class="center-title">Resources Tuition Centre, Pilani</h2>
+                <h3>Office Copy</h3>
+                <table>
+                    <tr>
+                        <th>Receipt No.:</th>
+                        <td id="officeReceiptNo"></td>
+                        <th>Date:</th>
+                        <td id="officeDate"></td>
+                    </tr>
+                </table>
+                <h3>Student Details</h3>
+                <table>
+                    <tr>
+                        <th>Student</th>
+                        <td id="officeStudentName"></td>
+                        <th>Class</th>
+                        <td id="officeClass"></td>
+                    </tr>
+                    <tr>
+                        <th>Father</th>
+                        <td id="officeFatherName"></td>
+                        <th>Mother</th>
+                        <td id="officeMotherName"></td>
+                    </tr>
+                    <tr>
+                        <th>Mobile No.</th>
+                        <td id="officeMobileNo"></td>
+                        <th></th>
+                        <td></td>
+                    </tr>
+                </table>
+                <h3>Academics Info</h3>
+                <table>
+                    <tr>
+                        <th>Subjects</th>
+                        <td>All</td>
+                        <th>Medium</th>
+                        <td>Hindi & English</td>
+                    </tr>
+                    <tr>
+                        <th>Activities</th>
+                        <td>Dance, Art & Craft, Robotics</td>
+                        <th></th>
+                        <td></td>
+                    </tr>
+                </table>
+                <h3>Payment Info</h3>
+                <table>
+                    <tr>
+                        <th>Amount</th>
+                        <td id="officeTuitionFee"></td>
+                        <th>Mode</th>
+                        <td id="officePaymentMode"></td>
+                    </tr>
+                    <tr>
+                        <th>Status</th>
+                        <td>✅ Paid</td>
+                        <th>Paid On</th>
+                        <td id="officePaidOn"></td>
+                    </tr>
+                </table>
+                <p class="signature">Signature: ____________________</p>
+                <div class="contact-info">
+                    <p>Contact: 9667683378, 9694449220</p>
+                    <p>Sarawagi Dharamshala, Near Jherli Road, Shanti Nagar, Pilani</p>
+                    <p>Thank you for your trust!</p>
+                </div>
+            </div>
+
+            <div class="receipt-section" id="parentsCopy">
+                <div class="brand-title">LEARN 360+ EXPERTISE</div>
+                <h2 class="center-title">Resources Tuition Centre, Pilani</h2>
+                <h3>Parents Copy</h3>
+                <table>
+                    <tr>
+                        <th>Receipt No.:</th>
+                        <td id="parentsReceiptNo"></td>
+                        <th>Date:</th>
+                        <td id="parentsDate"></td>
+                    </tr>
+                </table>
+                <h3>Student Details</h3>
+                <table>
+                    <tr>
+                        <th>Student</th>
+                        <td id="parentsStudentName"></td>
+                        <th>Class</th>
+                        <td id="parentsClass"></td>
+                    </tr>
+                    <tr>
+                        <th>Father</th>
+                        <td id="parentsFatherName"></td>
+                        <th>Mother</th>
+                        <td id="parentsMotherName"></td>
+                    </tr>
+                    <tr>
+                        <th>Mobile No.</th>
+                        <td id="parentsMobileNo"></td>
+                        <th></th>
+                        <td></td>
+                    </tr>
+                </table>
+                <h3>Academics Info</h3>
+                <table>
+                    <tr>
+                        <th>Subjects</th>
+                        <td>All</td>
+                        <th>Medium</th>
+                        <td>Hindi & English</td>
+                    </tr>
+                    <tr>
+                        <th>Activities</th>
+                        <td>Dance, Art & Craft, Robotics</td>
+                        <th></th>
+                        <td></td>
+                    </tr>
+                </table>
+                <h3>Payment Info</h3>
+                <table>
+                    <tr>
+                        <th>Amount</th>
+                        <td id="parentsTuitionFee"></td>
+                        <th>Mode</th>
+                        <td id="parentsPaymentMode"></td>
+                    </tr>
+                    <tr>
+                        <th>Status</th>
+                        <td>✅ Paid</td>
+                        <th>Paid On</th>
+                        <td id="parentsPaidOn"></td>
+                    </tr>
+                </table>
+                <p class="signature">Signature: ____________________</p>
+                <div class="contact-info">
+                    <p>Contact: 9667683378, 9694449220</p>
+                    <p>Sarawagi Dharamshala, Near Jherli Road, Shanti Nagar, Pilani</p>
+                    <p>Thank you for your trust!</p>
+                </div>
+            </div>
+            <div class=" button-container">
+                <button class="print-button" onclick="printReceipt()">Print Receipt</button>
+                <button class="close-button" onclick="closeReceipt()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set current date in the date input
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+        // Validate mobile number
+        document.getElementById('mobileNo').addEventListener('input', function(e) {
+            if (this.value.length > 10) {
+                this.value = this.value.slice(0, 10);
+            }
+        });
+
+        // Payment mode selection
+        function selectPaymentMode(element) {
+            document.querySelectorAll('.payment-option').forEach(opt => opt.classList.remove('selected'));
+            element.classList.add('selected');
+            document.getElementById('paymentMode').value = element.getAttribute('data-value');
+        }
+
+        function generateReceipt(event) {
+            event.preventDefault();
+            const receiptNo = document.getElementById('receiptNo').value;
+            const date = document.getElementById('date').value;
+            const studentName = document.getElementById('studentName').value;
+            const className = document.getElementById('class').value;
+            const fatherName = document.getElementById('fatherName').value;
+            const motherName = document.getElementById('motherName').value;
+            const mobileNo = document.getElementById('mobileNo').value;
+            const tuitionFee = document.getElementById('tuitionFee').value;
+            const paymentMode = document.getElementById('paymentMode').value;
+
+            // Validate mobile number
+            if (!/^[0-9]{10}$/.test(mobileNo)) {
+                alert('Please enter a valid 10-digit mobile number.');
+                return;
+            }
+
+            // Validate payment mode
+            if (!paymentMode) {
+                alert('Please select a payment mode.');
+                return;
+            }
+
+            // Update Office Copy
+            document.getElementById('officeReceiptNo').textContent = receiptNo;
+            document.getElementById('officeDate').textContent = date;
+            document.getElementById('officeStudentName').textContent = studentName;
+            document.getElementById('officeClass').textContent = className;
+            document.getElementById('officeFatherName').textContent = fatherName;
+            document.getElementById('officeMotherName').textContent = motherName;
+            document.getElementById('officeMobileNo').textContent = mobileNo;
+            document.getElementById('officeTuitionFee').textContent = `₹${parseFloat(tuitionFee).toFixed(2)}`;
+            document.getElementById('officePaymentMode').textContent = paymentMode;
+            document.getElementById('officePaidOn').textContent = date;
+
+            // Update Parents Copy
+            document.getElementById('parentsReceiptNo').textContent = receiptNo;
+            document.getElementById('parentsDate').textContent = date;
+            document.getElementById('parentsStudentName').textContent = studentName;
+            document.getElementById('parentsClass').textContent = className;
+            document.getElementById('parentsFatherName').textContent = fatherName;
+            document.getElementById('parentsMotherName').textContent = motherName;
+            document.getElementById('parentsMobileNo').textContent = mobileNo;
+            document.getElementById('parentsTuitionFee').textContent = `₹${parseFloat(tuitionFee).toFixed(2)}`;
+            document.getElementById('parentsPaymentMode').textContent = paymentMode;
+            document.getElementById('parentsPaidOn').textContent = date;
+
+            // Show receipt sections
+            document.getElementById('officeCopy').classList.add('active');
+            document.getElementById('parentsCopy').classList.add('active');
+        }
+
+        function printReceipt() {
+            window.print();
+        }
+
+        function closeReceipt() {
+            document.getElementById('officeCopy').classList.remove('active');
+            document.getElementById('parentsCopy').classList.remove('active');
+            document.getElementById('receiptForm').reset();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            document.querySelectorAll('.payment-option').forEach(opt => opt.classList.remove('selected'));
+            document.getElementById('paymentMode').value = '';
+        }
+    </script>
+</body>
+</html>
